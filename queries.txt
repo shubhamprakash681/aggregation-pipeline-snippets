@@ -1,0 +1,413 @@
+Q1. How many users are active?
+[
+  {
+    $match: {
+      isActive: true,
+    },
+  },
+  {
+    $count: "activeUsers",
+  },
+]
+
+Q2. What is the average age of all users?
+[
+  {
+    $group: {
+      _id: "$gender",
+      averageAge: {
+        $avg: "$age",
+      },
+    },
+  },
+]
+This first groups whole collection on the basis of gender
+and then calculates the average age for each category (here, male & female)
+
+Note, to fit entire collection into one group, use _id: null
+[
+  {
+    $group: {
+      _id: null,
+      averageAge: {
+        $avg: "$age",
+      },
+    },
+  },
+]
+ie, this will calculate the average age of all users
+
+
+Q3. List the top 5 most common favourite fruits among users
+[
+  // stage 1 - grouping on the basis of $favoriteFruit
+  // and populating a field 'count' which will increment by 1 on each respective match found
+  {
+    $group: {
+      _id: "$favoriteFruit",
+      count: {
+        $sum: 1,
+      },
+    },
+  },
+
+  // stage 2 - sort
+  // note 1: Ascending, -1: Descending
+  {
+    $sort: {
+      count: -1,
+    },
+  },
+
+  // stage 3 - limiting the doc count to 5
+  {
+    $limit: 5,
+  },
+]
+
+
+Q4. Find the total no. of males and females
+[
+  {
+    $group: {
+      _id: "$gender",
+      count: {
+        $sum: 1,
+      },
+    },
+  },
+]
+
+Q5. Which country has the highest number of registered users
+[
+  //  stage 1 - grouping based on country
+  {
+    $group: {
+      _id: "$company.location.country",
+      userCount: {
+        $sum: 1,
+      },
+    },
+  },
+
+  // stage 2 -sorting on the basis of user count
+  {
+    $sort: {
+      userCount: -1,
+    },
+  },
+
+  //stage 3 - Limiting
+  {
+    $limit: 1,
+  },
+]
+
+Q6. List all unique eye color present in the collection
+[
+  {
+    $group: {
+      _id: "$eyeColor",
+    },
+  },
+]
+
+// L-04
+// Dealing with Arrays
+Q7. What is the average number of tags per user
+Method 1: by unwinding tags
+[
+  // stage 1 - Unwind $tags
+  {
+    $unwind: {
+      path: "$tags",
+      // includeArrayIndex: 'string',
+      // preserveNullAndEmptyArrays: boolean
+    },
+  },
+
+  // stage 2 - group based on user id (_id) and count docs
+  {
+    $group: {
+      _id: "$_id",
+      numberOfTags: {
+        $sum: 1,
+      },
+    },
+  },
+
+  // stage 3 - group all these docs into a single doc (group with _id=null)
+  {
+    $group: {
+      _id: null,
+      averageTagsPerUser: {
+        $avg: "$numberOfTags",
+      },
+    },
+  },
+]
+
+Method 2: Using $addField
+[
+  // stage 1 - add tagCount for each user document
+  {
+    $addFields: {
+      tagCount: {
+        $size: {
+          $ifNull: ["$tags", []],
+        },
+      },
+    },
+  },
+
+  // stage 2 - group all docs into single doc and calc average
+  {
+    $group: {
+      _id: null,
+      averageTagCount: {
+        $avg: "$tagCount",
+      },
+    },
+  },
+]
+
+
+// L-05
+// Match & project pipeline
+Q8. How many users have 'enim' as one of their tags?
+Method 1:
+[
+  // stage 1 - filtering out docs on the basis of tags (if enim is present)
+  {
+    $match: {
+      tags: "enim",
+    },
+  },
+
+  //stage 2 - combine all into single doc and count
+  {
+    $group: {
+      _id: null,
+      userCountWithEnimTag: {
+        $sum: 1,
+      },
+    },
+  },
+]
+
+Method 2:
+[
+  // stage 1 - filtering out docs on the basis of tags (if enim is present)
+  {
+    $match: {
+      tags: "enim",
+    },
+  },
+
+  //stage 2 - count no. of docs at this stage
+  {
+    $count: "userCountWithEnimTag",
+  },
+]
+
+Q9. What are the names & age of the users who are inactive and have 'velit' as a tag?
+Method 1:
+[
+  // stage 1 - isActive filter
+  {
+    $match: {
+      isActive: false,
+    },
+  },
+
+  // stage 2 - tag filter
+  {
+    $match: {
+      tags: "velit",
+    },
+  },
+
+  // projecting with only name and age
+  {
+    $project: {
+      name: 1,
+      age: 1,
+    },
+  },
+]
+Method 2:
+[
+  // stage 1 - both filters
+  {
+    $match: {
+      isActive: false,
+      tags: "velit",
+    },
+  },
+  // stage 2 - projecting with only name and age
+  {
+    $project: {
+      name: 1,
+      age: 1,
+    },
+  },
+]
+
+Q10. How many users have phone number starting with '+1 (940)'?
+[
+  // stage 1 - filter using regex
+  {
+    $match: {
+      "company.phone": /^\+1 \(940\)/,
+    },
+  },
+
+  // stage 2 - count
+  {
+    $count: "usersWithSpecialPhoneNo",
+  },
+]
+
+// L-06
+// Match all operator
+Q11. Who has registered most recently?
+[
+  // stage 1 - sorting based on registered
+  {
+    $sort: {
+      registered: -1,
+    },
+  },
+
+  // stage 2 - limit
+  {
+    $limit: 5,
+  },
+
+  // stage 3 - projecting required fields only
+  {
+    $project: {
+      name: 1,
+      registered: 1,
+      favoriteFruit: 1,
+    },
+  },
+]
+
+Q12. Categorize user by their favourite fruit
+[
+  {
+    $group: {
+      _id: "$favoriteFruit",
+      users: {
+        $push: {
+          name: "$name",
+          age: "$age",
+          gender: "$gender",
+        },
+      },
+    },
+  },
+]
+
+Q13. HOw many users have 'ad' as the second tag in their list of tags?
+[
+  // stage 1 - filter
+  {
+    $match: {
+      "tags.1": "ad",
+    },
+  },
+
+  // stage 2 - count
+  {
+    $count: "userCount",
+  },
+]
+
+Q14. Find Users who have both 'enim' and 'id' as their tags.
+// This method is wrong
+// [
+//   {
+//     $match: {
+//       tags: 'enim',
+//       tags: 'id'
+//     }
+//   }
+// ]
+
+[
+  {
+    $match: {
+      tags: {
+        $all: ["enim", "id"],
+      },
+    },
+  },
+]
+
+Q15. List all companies located in the USA with their corresponding user count
+[
+  // stage 1 - filter
+  {
+    $match: {
+      "company.location.country": "USA",
+    },
+  },
+
+  // stage 2 - Grouping on the basis of company title
+  {
+    $group: {
+      _id: "$company.title",
+      userCount: {
+        $sum: 1,
+      },
+    },
+  },
+]
+
+// L-07
+// Lookup
+// General Syntax
+[
+  // stage 1 - Performs left outer join and returns array of object
+  {
+    $lookup: {
+      from: "authors",
+      localField: "author_id",
+      foreignField: "_id",
+      as: "authorDetail",
+    },
+  },
+
+  // stage 2 - Convert the array obtained in first step to object
+  {
+    $addFields: {
+      authorDetail: {
+        $first: "$authorDetail",
+      },
+    },
+  },
+]
+
+// Alternate method for stage 2
+[
+  // stage 1 - Performs left outer join and returns array of object
+  {
+    $lookup: {
+      from: "authors",
+      localField: "author_id",
+      foreignField: "_id",
+      as: "authorDetail",
+    },
+  },
+
+  // stage 2 - Convert the array obtained in first step to object
+  {
+    $addFields: {
+      authorDetail: {
+        $arrayElemAt: ["$authorDetail", 0],
+      },
+    },
+  },
+]
